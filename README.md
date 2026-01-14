@@ -20,13 +20,11 @@ This project is a simplified implementation inspired by [pdbeccdutils](https://g
 
 ## Installation
 
-<!-- 
 ```bash
 uv add ccd2rdmol
 ```
 
 Or for development:
--->
 
 ```bash
 git clone https://github.com/N283T/ccd2rdmol.git
