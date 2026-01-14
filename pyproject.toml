@@ -25,7 +25,7 @@ dependencies = [
 ccd2rdmol = "ccd2rdmol.cli:main"
 
 [project.urls]
-Repository = "https://github.com/nagaet/ccd2rdmol"
+Repository = "https://github.com/N283T/ccd2rdmol"
 
 [build-system]
 requires = ["hatchling"]

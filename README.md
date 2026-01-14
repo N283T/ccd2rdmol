@@ -1,5 +1,10 @@
 # ccd2rdmol
 
+[![CI](https://github.com/N283T/ccd2rdmol/actions/workflows/ci.yml/badge.svg)](https://github.com/N283T/ccd2rdmol/actions/workflows/ci.yml)
+[![PyPI version](https://badge.fury.io/py/ccd2rdmol.svg)](https://badge.fury.io/py/ccd2rdmol)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+
 A lightweight Python library and CLI tool for converting PDB Chemical Component Dictionary (CCD) files to RDKit molecule objects.
 
 This project is a simplified implementation inspired by [pdbeccdutils](https://github.com/PDBeurope/ccdutils), focusing solely on CCD to RDKit conversion with 3D conformer support.
@@ -24,7 +29,7 @@ Or for development:
 -->
 
 ```bash
-git clone https://github.com/nagaet/ccd2rdmol.git
+git clone https://github.com/N283T/ccd2rdmol.git
 cd ccd2rdmol
 uv sync
 ```
