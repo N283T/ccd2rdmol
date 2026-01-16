@@ -12,6 +12,8 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Chemistry",
 ]
 dependencies = [
@@ -61,12 +63,17 @@ select = [
 
 [dependency-groups]
 dev = [
+    "nox>=2024.10.9",
     "poethepoet>=0.32.0",
     "pytest>=9.0.2",
     "ruff>=0.9.0",
 ]
 
 [tool.poe.tasks]
+# Nox multi-version testing
+nox = "nox"
+nox-list = "nox --list"
+
 # Formatting (ruff format)
 format = "ruff format src/ tests/"
 fmt = "poe format"

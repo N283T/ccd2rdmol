@@ -1,0 +1,15 @@
+"""Nox sessions for multi-version Python testing."""
+
+import nox
+
+nox.options.default_venv_backend = "uv"
+
+PYTHON_VERSIONS = ["3.12", "3.13", "3.14"]
+
+
+@nox.session(python=PYTHON_VERSIONS)
+def tests(session: nox.Session) -> None:
+    """Run the test suite."""
+    session.install(".")
+    session.install("pytest")
+    session.run("pytest", "tests/", "-v")
