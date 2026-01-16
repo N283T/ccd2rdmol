@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-01-16
+
+### Changed
+
+- CLI is now an optional dependency (`pip install ccd2rdmol[cli]`)
+- Core library (`ccd2rdmol`) no longer requires `rich` and `typer`
+
 ## [0.1.0] - 2025-01-15
 
 ### Added
@@ -21,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rich terminal output support
 - Options for sanitization, conformer handling, and hydrogen removal
 
-[Unreleased]: https://github.com/N283T/ccd2rdmol/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/N283T/ccd2rdmol/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/N283T/ccd2rdmol/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/N283T/ccd2rdmol/releases/tag/v0.1.0
 

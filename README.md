@@ -21,7 +21,11 @@ This project is a simplified implementation inspired by [pdbeccdutils](https://g
 ## Installation
 
 ```bash
+# Library only
 uv add ccd2rdmol
+
+# With CLI support
+uv add ccd2rdmol[cli]
 ```
 
 Or for development:
@@ -29,7 +33,7 @@ Or for development:
 ```bash
 git clone https://github.com/N283T/ccd2rdmol.git
 cd ccd2rdmol
-uv sync
+uv sync  # CLI is included in dev dependencies
 ```
 
 ## Usage
@@ -65,6 +69,8 @@ for block in doc:
 ```
 
 ### As a CLI
+
+> **Note**: CLI requires extra dependencies. Install with `uv add ccd2rdmol[cli]`
 
 ```bash
 # Output SMILES to stdout
