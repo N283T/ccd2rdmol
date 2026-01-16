@@ -3,7 +3,7 @@
 [![CI](https://github.com/N283T/ccd2rdmol/actions/workflows/ci.yml/badge.svg)](https://github.com/N283T/ccd2rdmol/actions/workflows/ci.yml)
 [![PyPI version](https://badge.fury.io/py/ccd2rdmol.svg)](https://badge.fury.io/py/ccd2rdmol)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 A lightweight Python library and CLI tool for converting PDB Chemical Component Dictionary (CCD) files to RDKit molecule objects.
 
@@ -126,6 +126,9 @@ uv run poe check
 
 # Run tests
 uv run poe test
+
+# Multi-version testing with nox (3.10, 3.11, 3.12, 3.13, 3.14)
+uv run poe nox
 
 # Run all checks (format, lint, check, test)
 uv run poe all
