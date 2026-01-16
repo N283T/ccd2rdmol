@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-01-16
+
+### Fixed
+
+- Updated README with optional CLI installation instructions
+- Updated CHANGELOG for v0.2.0 changes
+
 ## [0.2.0] - 2025-01-16
 
 ### Changed
@@ -28,7 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rich terminal output support
 - Options for sanitization, conformer handling, and hydrogen removal
 
-[Unreleased]: https://github.com/N283T/ccd2rdmol/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/N283T/ccd2rdmol/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/N283T/ccd2rdmol/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/N283T/ccd2rdmol/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/N283T/ccd2rdmol/releases/tag/v0.1.0
 
