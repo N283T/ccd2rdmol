@@ -21,6 +21,10 @@ classifiers = [
 dependencies = [
     "gemmi>=0.7.0",
     "rdkit>=2024.3.1",
+]
+
+[project.optional-dependencies]
+cli = [
     "rich>=14.0.0",
     "typer>=0.21.0",
 ]
@@ -65,6 +69,7 @@ select = [
 
 [dependency-groups]
 dev = [
+    "ccd2rdmol[cli]",
     "nox>=2024.10.9",
     "poethepoet>=0.32.0",
     "pytest>=9.0.2",

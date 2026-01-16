@@ -5,10 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-import typer
+try:
+    import typer
+    from rich.console import Console
+    from rich.table import Table
+except ImportError as e:
+    raise ImportError(
+        "CLI dependencies not installed. Install with: pip install ccd2rdmol[cli]"
+    ) from e
+
 from rdkit import Chem
-from rich.console import Console
-from rich.table import Table
 
 from .converter import read_ccd_file
 
