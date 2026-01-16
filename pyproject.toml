@@ -73,6 +73,7 @@ dev = [
     "nox>=2024.10.9",
     "poethepoet>=0.32.0",
     "pytest>=9.0.2",
+    "pytest-cov>=6.0.0",
     "ruff>=0.9.0",
 ]
 
@@ -94,9 +95,22 @@ check = "ty check src/"
 
 # Testing
 test = "pytest tests/ -v"
+test-cov = "pytest tests/ -v --cov=ccd2rdmol --cov-report=term-missing --cov-report=xml"
 
 # All checks
 all = ["format", "lint", "check", "test"]
 
 # Clean
 clean = "rm -rf __pycache__ .pytest_cache .ruff_cache **/__pycache__"
+
+[tool.coverage.run]
+source = ["src/ccd2rdmol"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+show_missing = true

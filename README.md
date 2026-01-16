@@ -1,6 +1,7 @@
 # ccd2rdmol
 
 [![CI](https://github.com/N283T/ccd2rdmol/actions/workflows/ci.yml/badge.svg)](https://github.com/N283T/ccd2rdmol/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/N283T/ccd2rdmol/graph/badge.svg)](https://codecov.io/gh/N283T/ccd2rdmol)
 [![PyPI version](https://badge.fury.io/py/ccd2rdmol.svg)](https://badge.fury.io/py/ccd2rdmol)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)

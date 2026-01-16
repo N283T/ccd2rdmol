@@ -108,3 +108,104 @@ class TestConformerType:
             pos = conf.GetAtomPosition(0)
             # At least one coordinate should be non-zero
             assert pos.x != 0.0 or pos.y != 0.0 or pos.z != 0.0
+
+
+class TestReadCcdBlock:
+    """Tests for read_ccd_block function."""
+
+    def test_read_block_from_file(self, atp_cif: Path) -> None:
+        """Test reading CIF block directly."""
+        import gemmi
+
+        from ccd2rdmol import read_ccd_block
+
+        doc = gemmi.cif.read(str(atp_cif))
+        block = doc.sole_block()
+
+        result = read_ccd_block(block)
+
+        assert result.mol is not None
+        assert result.mol.GetNumAtoms() > 0
+
+    def test_read_block_with_options(self, gol_cif: Path) -> None:
+        """Test read_ccd_block with various options."""
+        import gemmi
+
+        from ccd2rdmol import read_ccd_block
+
+        doc = gemmi.cif.read(str(gol_cif))
+        block = doc.sole_block()
+
+        # Test with all options
+        result = read_ccd_block(
+            block,
+            sanitize_mol=True,
+            add_conformers=True,
+            remove_hydrogens=False,
+        )
+
+        assert result.mol is not None
+        assert result.sanitized is True
+        assert result.mol.GetNumConformers() > 0
+
+    def test_read_block_no_sanitize(self, atp_cif: Path) -> None:
+        """Test read_ccd_block without sanitization."""
+        import gemmi
+
+        from ccd2rdmol import read_ccd_block
+
+        doc = gemmi.cif.read(str(atp_cif))
+        block = doc.sole_block()
+
+        result = read_ccd_block(block, sanitize_mol=False)
+
+        assert result.mol is not None
+        # Sanitized should be False when sanitize_mol=False
+        assert result.sanitized is False
+
+
+class TestChemcompToMol:
+    """Tests for chemcomp_to_mol function."""
+
+    def test_chemcomp_basic(self, gol_cif: Path) -> None:
+        """Test chemcomp_to_mol basic usage."""
+        import gemmi
+
+        from ccd2rdmol import chemcomp_to_mol
+
+        doc = gemmi.cif.read(str(gol_cif))
+        block = doc.sole_block()
+        cc = gemmi.make_chemcomp_from_block(block)
+
+        result = chemcomp_to_mol(cc, block)
+
+        assert result.mol is not None
+        assert result.mol.GetNumAtoms() > 0
+
+    def test_chemcomp_with_conformers(self, atp_cif: Path) -> None:
+        """Test chemcomp_to_mol with conformers."""
+        import gemmi
+
+        from ccd2rdmol import chemcomp_to_mol
+
+        doc = gemmi.cif.read(str(atp_cif))
+        block = doc.sole_block()
+        cc = gemmi.make_chemcomp_from_block(block)
+
+        result = chemcomp_to_mol(cc, block, add_conformers=True)
+
+        assert result.mol.GetNumConformers() > 0
+
+    def test_chemcomp_without_conformers(self, atp_cif: Path) -> None:
+        """Test chemcomp_to_mol without conformers."""
+        import gemmi
+
+        from ccd2rdmol import chemcomp_to_mol
+
+        doc = gemmi.cif.read(str(atp_cif))
+        block = doc.sole_block()
+        cc = gemmi.make_chemcomp_from_block(block)
+
+        result = chemcomp_to_mol(cc, block, add_conformers=False)
+
+        assert result.mol.GetNumConformers() == 0
