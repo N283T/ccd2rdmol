@@ -14,6 +14,7 @@ from .sanitizer import handle_implicit_hydrogens, sanitize
 if TYPE_CHECKING:
     pass
 
+
 # Bond type mapping from gemmi to RDKit
 BOND_TYPE_MAP: dict[gemmi.BondType, Chem.BondType] = {
     gemmi.BondType.Unspec: Chem.BondType.UNSPECIFIED,
@@ -26,7 +27,7 @@ BOND_TYPE_MAP: dict[gemmi.BondType, Chem.BondType] = {
 }
 
 
-def _add_atoms(rwmol: Chem.RWMol, atoms: gemmi.ChemCompAtoms) -> list[str]:
+def _add_atoms(rwmol: Chem.RWMol, atoms: gemmi.ChemCompAtoms) -> dict[str, int]:
     """Add atoms from chemical component to RDKit molecule.
 
     Args:
@@ -34,9 +35,9 @@ def _add_atoms(rwmol: Chem.RWMol, atoms: gemmi.ChemCompAtoms) -> list[str]:
         atoms: Gemmi chemical component atoms.
 
     Returns:
-        List of atom IDs for bond indexing.
+        Mapping of atom ID to RDKit atom index.
     """
-    atom_ids: list[str] = []
+    atom_id_map: dict[str, int] = {}
 
     for atom in atoms:
         rdkit_atom = Chem.Atom(atom.el.atomic_number)
@@ -46,16 +47,16 @@ def _add_atoms(rwmol: Chem.RWMol, atoms: gemmi.ChemCompAtoms) -> list[str]:
 
         rdkit_atom.SetProp("name", atom.id)
         rdkit_atom.SetFormalCharge(int(atom.charge))
-        rwmol.AddAtom(rdkit_atom)
-        atom_ids.append(atom.id)
+        idx = rwmol.AddAtom(rdkit_atom)
+        atom_id_map[atom.id] = idx
 
-    return atom_ids
+    return atom_id_map
 
 
 def _add_bonds(
     rwmol: Chem.RWMol,
     bonds: gemmi.RestraintsBonds,
-    atom_ids: list[str],
+    atom_id_map: dict[str, int],
     errors: list[str],
 ) -> None:
     """Add bonds from chemical component to RDKit molecule.
@@ -63,36 +64,58 @@ def _add_bonds(
     Args:
         rwmol: RDKit mutable molecule.
         bonds: Gemmi bond restraints.
-        atom_ids: List of atom IDs for index lookup.
+        atom_id_map: Mapping of atom ID to RDKit atom index.
         errors: List to append error messages to.
     """
     for bond in bonds:
         try:
-            idx1 = atom_ids.index(bond.id1.atom)
-            idx2 = atom_ids.index(bond.id2.atom)
+            idx1 = atom_id_map[bond.id1.atom]
+            idx2 = atom_id_map[bond.id2.atom]
             order = BOND_TYPE_MAP.get(bond.type, Chem.BondType.UNSPECIFIED)
             rwmol.AddBond(idx1, idx2, order=order)
-        except ValueError:
+        except KeyError:
             errors.append(f"Bond atom not found: {bond.id1.atom} - {bond.id2.atom}")
         except RuntimeError:
             errors.append(f"Duplicate bond: {bond.id1.atom} - {bond.id2.atom}")
 
 
-def _str_to_float(value: str) -> float:
+def _str_to_float(value: str) -> float | None:
     """Convert CIF string to float, handling missing values.
 
     Args:
         value: String value from CIF.
 
     Returns:
-        Float value, 0.0 if missing or invalid.
+        Float value, or None if missing/invalid.
     """
     if not value or value in ("?", "."):
-        return 0.0
+        return None
     try:
         return float(value)
     except ValueError:
-        return 0.0
+        return None
+
+
+def _is_degenerate_conformer(conformer: Chem.Conformer) -> bool:
+    """Check if conformer has too many atoms at the origin.
+
+    A conformer is considered degenerate if more than one atom sits at (0,0,0),
+    which typically indicates missing coordinate data rather than real positions.
+
+    Args:
+        conformer: RDKit conformer to check.
+
+    Returns:
+        True if conformer is degenerate.
+    """
+    origin_count = 0
+    for i in range(conformer.GetNumAtoms()):
+        pos = conformer.GetAtomPosition(i)
+        if pos.x == 0.0 and pos.y == 0.0 and pos.z == 0.0:
+            origin_count += 1
+            if origin_count > 1:
+                return True
+    return False
 
 
 def _add_conformer(
@@ -133,19 +156,22 @@ def _add_conformer(
     num_atoms = rwmol.GetNumAtoms()
     conformer = Chem.Conformer(num_atoms)
 
-    has_valid_coords = False
+    all_missing = True
     for row in atoms_table:
         x = _str_to_float(row[f"_chem_comp_atom.{coord_fields[0]}"])
         y = _str_to_float(row[f"_chem_comp_atom.{coord_fields[1]}"])
         z = _str_to_float(row[f"_chem_comp_atom.{coord_fields[2]}"])
 
-        if x != 0.0 or y != 0.0 or z != 0.0:
-            has_valid_coords = True
+        fx, fy, fz = x or 0.0, y or 0.0, z or 0.0
+        if x is not None or y is not None or z is not None:
+            all_missing = False
 
-        position = rdGeometry.Point3D(x, y, z)
-        conformer.SetAtomPosition(row.row_index, position)
+        conformer.SetAtomPosition(row.row_index, rdGeometry.Point3D(fx, fy, fz))
 
-    if not has_valid_coords:
+    if all_missing:
+        return False
+
+    if _is_degenerate_conformer(conformer):
         return False
 
     conformer.SetProp("name", conf_type.name)
@@ -203,8 +229,8 @@ def chemcomp_to_mol(
     sanitized = False
 
     rwmol = Chem.RWMol()
-    atom_ids = _add_atoms(rwmol, cc.atoms)
-    _add_bonds(rwmol, cc.rt.bonds, atom_ids, errors)
+    atom_id_map = _add_atoms(rwmol, cc.atoms)
+    _add_bonds(rwmol, cc.rt.bonds, atom_id_map, errors)
     handle_implicit_hydrogens(rwmol)
 
     if add_conformers:

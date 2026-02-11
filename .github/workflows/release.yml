@@ -22,6 +22,15 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
+      - name: Validate version matches tag
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          PYPROJECT_VERSION=$(grep '^version = ' pyproject.toml | cut -d'"' -f2)
+          if [ "$VERSION" != "$PYPROJECT_VERSION" ]; then
+            echo "::error::Tag version ($VERSION) does not match pyproject.toml ($PYPROJECT_VERSION)"
+            exit 1
+          fi
+
       - name: Build package
         run: uv build
 

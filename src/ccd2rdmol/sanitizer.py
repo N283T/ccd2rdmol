@@ -2,22 +2,16 @@
 
 from __future__ import annotations
 
-import re
-import sys
-from io import StringIO
-from typing import TYPE_CHECKING
-
 from rdkit import Chem, rdBase
 
 from .models import SanitizationResult
-
-if TYPE_CHECKING:
-    pass
 
 METALS_SMART = (
     "[Li,Na,K,Rb,Cs,Fr,Be,Mg,Ca,Sr,Ba,Ra,Sc,Ti,V,Cr,Mn,Fe,Co,Ni,Cu,Zn,Al,Ga,Y,Zr,Nb,Mo,"
     "Tc,Ru,Rh,Pd,Ag,Cd,In,Sn,Hf,Ta,W,Re,Os,Ir,Pt,Au,Hg,Tl,Pb,Bi]"
 )
+
+_MAX_SANITIZE_ATTEMPTS = 11
 
 
 def handle_implicit_hydrogens(mol: Chem.RWMol) -> None:
@@ -43,58 +37,54 @@ def handle_implicit_hydrogens(mol: Chem.RWMol) -> None:
 def _fix_valence_errors(rwmol: Chem.RWMol) -> bool:
     """Fix valence errors by converting metal bonds to dative bonds.
 
+    Uses DetectChemistryProblems to identify atoms with valence issues,
+    then converts their metal bonds to dative bonds.
+
     Args:
         rwmol: RDKit molecule to be sanitized in place.
 
     Returns:
         Whether sanitization succeeded.
     """
-    attempts = 10
-    saved_stderr = sys.stderr
-    rdBase.LogToPythonStderr()
+    with rdBase.BlockLogs():
+        for _ in range(_MAX_SANITIZE_ATTEMPTS):
+            sanitization_result = Chem.SanitizeMol(rwmol, catchErrors=True)
+            if sanitization_result == 0:
+                return True
 
-    while attempts >= 0:
-        log = sys.stderr = StringIO()
-        sanitization_result = Chem.SanitizeMol(rwmol, catchErrors=True)
+            problems = Chem.DetectChemistryProblems(rwmol)
+            valence_problems = [p for p in problems if p.GetType() == "AtomValenceException"]
+            if not valence_problems:
+                return False
 
-        if sanitization_result == 0:
-            sys.stderr = saved_stderr
-            return True
+            for problem in valence_problems:
+                atom_idx = problem.GetAtomIdx()
+                atom = rwmol.GetAtomWithIdx(atom_idx)
+                element = atom.GetSymbol()
+                valency = atom.GetExplicitValence()
 
-        sanitization_failures = re.findall(r"[a-zA-Z]{1,2}, \d+", log.getvalue())
+                smarts_pattern = Chem.MolFromSmarts(f"{METALS_SMART}~[{element}]")
+                if smarts_pattern is None:
+                    continue
 
-        if not sanitization_failures:
-            sys.stderr = saved_stderr
-            return False
+                metal_bonds = rwmol.GetSubstructMatches(smarts_pattern)
+                Chem.SanitizeMol(rwmol, sanitizeOps=Chem.SanitizeFlags.SANITIZE_CLEANUP)
 
-        for failure in sanitization_failures:
-            parts = failure.split(",")
-            element = parts[0]
-            valency = int(parts[1].strip())
+                for metal_idx, other_idx in metal_bonds:
+                    other_atom = rwmol.GetAtomWithIdx(other_idx)
+                    if other_atom.GetExplicitValence() == valency:
+                        rwmol.RemoveBond(metal_idx, other_idx)
+                        rwmol.AddBond(other_idx, metal_idx, Chem.BondType.DATIVE)
 
-            smarts_pattern = Chem.MolFromSmarts(f"{METALS_SMART}~[{element}]")
-            if smarts_pattern is None:
-                continue
+                rwmol.UpdatePropertyCache()
 
-            metal_bonds = rwmol.GetSubstructMatches(smarts_pattern)
-            Chem.SanitizeMol(rwmol, sanitizeOps=Chem.SanitizeFlags.SANITIZE_CLEANUP)
-
-            for metal_idx, other_idx in metal_bonds:
-                other_atom = rwmol.GetAtomWithIdx(other_idx)
-                if other_atom.GetExplicitValence() == valency:
-                    rwmol.RemoveBond(metal_idx, other_idx)
-                    rwmol.AddBond(other_idx, metal_idx, Chem.BondType.DATIVE)
-
-            rwmol.UpdatePropertyCache()
-
-        attempts -= 1
-
-    sys.stderr = saved_stderr
     return False
 
 
 def sanitize(rwmol: Chem.RWMol) -> SanitizationResult:
     """Sanitize molecule and fix common issues.
+
+    Creates a copy of the input molecule; the original is never modified.
 
     Args:
         rwmol: RDKit molecule to be sanitized.
@@ -102,17 +92,18 @@ def sanitize(rwmol: Chem.RWMol) -> SanitizationResult:
     Returns:
         SanitizationResult with sanitized molecule and success status.
     """
+    mol_copy = Chem.RWMol(rwmol)
     try:
-        mol_copy = Chem.RWMol(rwmol)
         success = _fix_valence_errors(mol_copy)
 
         if not success:
-            Chem.SanitizeMol(rwmol, sanitizeOps=Chem.SanitizeFlags.SANITIZE_CLEANUP)
-            return SanitizationResult(mol=rwmol, success=False)
+            Chem.SanitizeMol(mol_copy, sanitizeOps=Chem.SanitizeFlags.SANITIZE_CLEANUP)
+            return SanitizationResult(mol=mol_copy, success=False)
 
         Chem.Kekulize(mol_copy)
         return SanitizationResult(mol=mol_copy, success=True)
 
     except Exception:
-        Chem.SanitizeMol(rwmol, sanitizeOps=Chem.SanitizeFlags.SANITIZE_CLEANUP)
-        return SanitizationResult(mol=rwmol, success=False)
+        mol_fallback = Chem.RWMol(rwmol)
+        Chem.SanitizeMol(mol_fallback, sanitizeOps=Chem.SanitizeFlags.SANITIZE_CLEANUP)
+        return SanitizationResult(mol=mol_fallback, success=False)
