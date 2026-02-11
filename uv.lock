@@ -51,10 +51,10 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "gemmi", specifier = ">=0.7.0" },
-    { name = "rdkit", specifier = ">=2024.3.1" },
-    { name = "rich", marker = "extra == 'cli'", specifier = ">=14.0.0" },
-    { name = "typer", marker = "extra == 'cli'", specifier = ">=0.21.0" },
+    { name = "gemmi", specifier = ">=0.7.0,<1" },
+    { name = "rdkit", specifier = ">=2024.3.1,<2026" },
+    { name = "rich", marker = "extra == 'cli'", specifier = ">=14.0.0,<15" },
+    { name = "typer", marker = "extra == 'cli'", specifier = ">=0.21.0,<1" },
 ]
 provides-extras = ["cli"]
 

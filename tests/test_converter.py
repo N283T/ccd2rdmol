@@ -2,10 +2,12 @@
 
 from pathlib import Path
 
+import gemmi
 import pytest
 from rdkit import Chem
 
-from ccd2rdmol import read_ccd_file
+from ccd2rdmol import chemcomp_to_mol, read_ccd_file
+from ccd2rdmol.converter import _is_degenerate_conformer, _str_to_float
 
 # Test data directory
 TEST_DATA_DIR = Path(__file__).parent / "data"
@@ -209,3 +211,139 @@ class TestChemcompToMol:
         result = chemcomp_to_mol(cc, block, add_conformers=False)
 
         assert result.mol.GetNumConformers() == 0
+
+
+class TestStrToFloat:
+    """Tests for _str_to_float helper."""
+
+    def test_valid_float(self) -> None:
+        assert _str_to_float("1.23") == 1.23
+
+    def test_negative_float(self) -> None:
+        assert _str_to_float("-4.56") == -4.56
+
+    def test_zero(self) -> None:
+        assert _str_to_float("0.0") == 0.0
+
+    def test_missing_question_mark(self) -> None:
+        assert _str_to_float("?") is None
+
+    def test_missing_dot(self) -> None:
+        assert _str_to_float(".") is None
+
+    def test_empty_string(self) -> None:
+        assert _str_to_float("") is None
+
+    def test_invalid_text(self) -> None:
+        assert _str_to_float("abc") is None
+
+
+class TestDegenerateConformer:
+    """Tests for _is_degenerate_conformer."""
+
+    def test_valid_conformer(self) -> None:
+        """Non-degenerate conformer with distinct positions."""
+        conf = Chem.Conformer(3)
+        conf.SetAtomPosition(0, Chem.rdGeometry.Point3D(1.0, 0.0, 0.0))
+        conf.SetAtomPosition(1, Chem.rdGeometry.Point3D(0.0, 1.0, 0.0))
+        conf.SetAtomPosition(2, Chem.rdGeometry.Point3D(0.0, 0.0, 1.0))
+
+        assert _is_degenerate_conformer(conf) is False
+
+    def test_single_atom_at_origin(self) -> None:
+        """One atom at origin is acceptable."""
+        conf = Chem.Conformer(3)
+        conf.SetAtomPosition(0, Chem.rdGeometry.Point3D(0.0, 0.0, 0.0))
+        conf.SetAtomPosition(1, Chem.rdGeometry.Point3D(1.0, 2.0, 3.0))
+        conf.SetAtomPosition(2, Chem.rdGeometry.Point3D(4.0, 5.0, 6.0))
+
+        assert _is_degenerate_conformer(conf) is False
+
+    def test_multiple_atoms_at_origin(self) -> None:
+        """More than one atom at origin = degenerate."""
+        conf = Chem.Conformer(3)
+        conf.SetAtomPosition(0, Chem.rdGeometry.Point3D(0.0, 0.0, 0.0))
+        conf.SetAtomPosition(1, Chem.rdGeometry.Point3D(0.0, 0.0, 0.0))
+        conf.SetAtomPosition(2, Chem.rdGeometry.Point3D(1.0, 2.0, 3.0))
+
+        assert _is_degenerate_conformer(conf) is True
+
+    def test_all_atoms_at_origin(self) -> None:
+        """All atoms at origin = degenerate."""
+        conf = Chem.Conformer(3)
+        conf.SetAtomPosition(0, Chem.rdGeometry.Point3D(0.0, 0.0, 0.0))
+        conf.SetAtomPosition(1, Chem.rdGeometry.Point3D(0.0, 0.0, 0.0))
+        conf.SetAtomPosition(2, Chem.rdGeometry.Point3D(0.0, 0.0, 0.0))
+
+        assert _is_degenerate_conformer(conf) is True
+
+
+class TestDeuteriumIsotope:
+    """Test Deuterium (D) isotope handling."""
+
+    def test_deuterium_isotope_set(self) -> None:
+        """Verify Deuterium atoms get isotope=2."""
+        cif_text = """
+data_TEST
+_chem_comp.id TEST
+_chem_comp.name 'Test deuterium'
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.charge
+TEST C1 C 0
+TEST D1 D 0
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.type
+TEST C1 D1 single
+"""
+        doc = gemmi.cif.read_string(cif_text)
+        block = doc.sole_block()
+        cc = gemmi.make_chemcomp_from_block(block)
+
+        result = chemcomp_to_mol(
+            cc, block, sanitize_mol=False, add_conformers=False, remove_hydrogens=False
+        )
+
+        deuterium_found = False
+        for atom in result.mol.GetAtoms():
+            if atom.GetAtomicNum() == 1 and atom.GetIsotope() == 2:
+                deuterium_found = True
+                break
+
+        assert deuterium_found
+
+
+class TestSanitizeInputImmutability:
+    """Test that sanitize() does not modify its input."""
+
+    def test_sanitize_does_not_mutate_input(self) -> None:
+        """Original molecule should remain unchanged after sanitize()."""
+        from ccd2rdmol.sanitizer import sanitize
+
+        mol = Chem.MolFromSmiles("CCO", sanitize=False)
+        rwmol = Chem.RWMol(mol)
+        original_smiles = Chem.MolToSmiles(rwmol.GetMol())
+        original_num_atoms = rwmol.GetNumAtoms()
+
+        sanitize(rwmol)
+
+        assert rwmol.GetNumAtoms() == original_num_atoms
+        assert Chem.MolToSmiles(rwmol.GetMol()) == original_smiles
+
+    def test_sanitize_does_not_mutate_metal_complex(self) -> None:
+        """Metal complex input should remain unchanged after sanitize()."""
+        from ccd2rdmol.sanitizer import sanitize
+
+        hem_path = TEST_DATA_DIR / "random_sample" / "HEM.cif"
+        result = read_ccd_file(str(hem_path), sanitize_mol=False)
+        rwmol = Chem.RWMol(result.mol)
+        original_num_bonds = rwmol.GetNumBonds()
+
+        sanitize(rwmol)
+
+        assert rwmol.GetNumBonds() == original_num_bonds

@@ -32,6 +32,9 @@ jobs:
       - name: Run formatter check (ruff format)
         run: uv run ruff format --check src/ tests/
 
+      - name: Run type check (ty)
+        run: uv run ty check src/
+
   test:
     runs-on: ubuntu-latest
     strategy:

@@ -17,6 +17,7 @@ except ImportError as e:
 from rdkit import Chem
 
 from .converter import read_ccd_file
+from .models import ConversionResult
 
 app = typer.Typer(
     name="ccd2rdmol",
@@ -153,7 +154,7 @@ def info(
     _print_info(result, input_file)
 
 
-def _print_info(result, input_file: Path) -> None:
+def _print_info(result: ConversionResult, input_file: Path) -> None:
     """Print detailed information about conversion result."""
     mol = result.mol
 
