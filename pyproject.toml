@@ -34,6 +34,7 @@ ccd2rdmol = "ccd2rdmol.cli:main"
 
 [project.urls]
 Repository = "https://github.com/N283T/ccd2rdmol"
+Changelog = "https://github.com/N283T/ccd2rdmol/blob/main/CHANGELOG.md"
 
 [build-system]
 requires = ["hatchling"]
