@@ -79,6 +79,7 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=6.0.0",
     "ruff>=0.9.0",
+    "ty>=0.0.1a7",
 ]
 
 [tool.poe.tasks]
