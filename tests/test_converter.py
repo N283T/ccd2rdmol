@@ -318,6 +318,223 @@ TEST C1 D1 single
         assert deuterium_found
 
 
+class TestAddBondsErrors:
+    """Tests for _add_bonds error handling."""
+
+    def test_bond_with_missing_atom(self) -> None:
+        """KeyError when bond references nonexistent atom."""
+        cif_text = """
+data_TEST
+_chem_comp.id TEST
+_chem_comp.name 'Test missing atom'
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.charge
+TEST C1 C 0
+TEST C2 C 0
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.type
+TEST C1 C2 single
+TEST C1 MISSING single
+"""
+        doc = gemmi.cif.read_string(cif_text)
+        block = doc.sole_block()
+        cc = gemmi.make_chemcomp_from_block(block)
+
+        result = chemcomp_to_mol(
+            cc, block, sanitize_mol=False, add_conformers=False, remove_hydrogens=False
+        )
+
+        assert result.mol.GetNumBonds() == 1
+        assert any("Bond atom not found" in e for e in result.errors)
+
+    def test_duplicate_bond(self) -> None:
+        """RuntimeError when duplicate bond is added."""
+        cif_text = """
+data_TEST
+_chem_comp.id TEST
+_chem_comp.name 'Test dup bond'
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.charge
+TEST C1 C 0
+TEST C2 C 0
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.type
+TEST C1 C2 single
+TEST C1 C2 single
+"""
+        doc = gemmi.cif.read_string(cif_text)
+        block = doc.sole_block()
+        cc = gemmi.make_chemcomp_from_block(block)
+
+        result = chemcomp_to_mol(
+            cc, block, sanitize_mol=False, add_conformers=False, remove_hydrogens=False
+        )
+
+        assert result.mol.GetNumBonds() == 1
+        assert any("Duplicate bond" in e for e in result.errors)
+
+
+class TestAddConformerEdgeCases:
+    """Tests for _add_conformer edge cases."""
+
+    def test_no_chem_comp_atom_category(self) -> None:
+        """CIF block without _chem_comp_atom category."""
+        cif_text = """
+data_TEST
+_chem_comp.id TEST
+_chem_comp.name 'Test no atoms'
+"""
+        doc = gemmi.cif.read_string(cif_text)
+        block = doc.sole_block()
+        cc = gemmi.make_chemcomp_from_block(block)
+
+        result = chemcomp_to_mol(
+            cc, block, sanitize_mol=False, add_conformers=True, remove_hydrogens=False
+        )
+
+        assert result.mol.GetNumConformers() == 0
+        assert any("No valid conformer" in w for w in result.warnings)
+
+    def test_all_missing_coordinates(self) -> None:
+        """CIF with all coordinates set to '?'."""
+        cif_text = """
+data_TEST
+_chem_comp.id TEST
+_chem_comp.name 'Test missing coords'
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.charge
+_chem_comp_atom.pdbx_model_Cartn_x_ideal
+_chem_comp_atom.pdbx_model_Cartn_y_ideal
+_chem_comp_atom.pdbx_model_Cartn_z_ideal
+_chem_comp_atom.model_Cartn_x
+_chem_comp_atom.model_Cartn_y
+_chem_comp_atom.model_Cartn_z
+TEST C1 C 0 ? ? ? ? ? ?
+TEST C2 C 0 ? ? ? ? ? ?
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.type
+TEST C1 C2 single
+"""
+        doc = gemmi.cif.read_string(cif_text)
+        block = doc.sole_block()
+        cc = gemmi.make_chemcomp_from_block(block)
+
+        result = chemcomp_to_mol(
+            cc, block, sanitize_mol=False, add_conformers=True, remove_hydrogens=False
+        )
+
+        assert result.mol.GetNumConformers() == 0
+        assert any("No valid conformer" in w for w in result.warnings)
+
+    def test_degenerate_coordinates_rejected(self) -> None:
+        """CIF where multiple atoms have (0,0,0) coordinates."""
+        cif_text = """
+data_TEST
+_chem_comp.id TEST
+_chem_comp.name 'Test degenerate coords'
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.charge
+_chem_comp_atom.pdbx_model_Cartn_x_ideal
+_chem_comp_atom.pdbx_model_Cartn_y_ideal
+_chem_comp_atom.pdbx_model_Cartn_z_ideal
+_chem_comp_atom.model_Cartn_x
+_chem_comp_atom.model_Cartn_y
+_chem_comp_atom.model_Cartn_z
+TEST C1 C 0 0.0 0.0 0.0 0.0 0.0 0.0
+TEST C2 C 0 0.0 0.0 0.0 0.0 0.0 0.0
+TEST C3 C 0 0.0 0.0 0.0 0.0 0.0 0.0
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.type
+TEST C1 C2 single
+TEST C2 C3 single
+"""
+        doc = gemmi.cif.read_string(cif_text)
+        block = doc.sole_block()
+        cc = gemmi.make_chemcomp_from_block(block)
+
+        result = chemcomp_to_mol(
+            cc, block, sanitize_mol=False, add_conformers=True, remove_hydrogens=False
+        )
+
+        assert result.mol.GetNumConformers() == 0
+        assert any("No valid conformer" in w for w in result.warnings)
+
+
+class TestAssignStereochemistry:
+    """Tests for _assign_stereochemistry branches."""
+
+    def test_no_conformers_skips_stereo(self, gol_cif: Path) -> None:
+        """Stereochemistry assignment is skipped when no conformers exist."""
+        result = read_ccd_file(str(gol_cif), sanitize_mol=True, add_conformers=False)
+
+        assert result.mol.GetNumConformers() == 0
+        assert result.sanitized is True
+
+    def test_model_conformer_used_for_stereo(self) -> None:
+        """Stereochemistry uses MODEL conformer when IDEAL is absent."""
+        cif_text = """
+data_TEST
+_chem_comp.id TEST
+_chem_comp.name 'Test model stereo'
+loop_
+_chem_comp_atom.comp_id
+_chem_comp_atom.atom_id
+_chem_comp_atom.type_symbol
+_chem_comp_atom.charge
+_chem_comp_atom.pdbx_model_Cartn_x_ideal
+_chem_comp_atom.pdbx_model_Cartn_y_ideal
+_chem_comp_atom.pdbx_model_Cartn_z_ideal
+_chem_comp_atom.model_Cartn_x
+_chem_comp_atom.model_Cartn_y
+_chem_comp_atom.model_Cartn_z
+TEST C1 C 0 ? ? ? 1.0 0.0 0.0
+TEST C2 C 0 ? ? ? 0.0 1.0 0.0
+TEST O1 O 0 ? ? ? 0.0 0.0 1.0
+loop_
+_chem_comp_bond.comp_id
+_chem_comp_bond.atom_id_1
+_chem_comp_bond.atom_id_2
+_chem_comp_bond.type
+TEST C1 C2 single
+TEST C2 O1 single
+"""
+        doc = gemmi.cif.read_string(cif_text)
+        block = doc.sole_block()
+        cc = gemmi.make_chemcomp_from_block(block)
+
+        result = chemcomp_to_mol(
+            cc, block, sanitize_mol=True, add_conformers=True, remove_hydrogens=False
+        )
+
+        assert result.mol.GetNumConformers() == 1
+        conf = result.mol.GetConformer(0)
+        assert conf.GetProp("name") == "MODEL"
+
+
 class TestSanitizeInputImmutability:
     """Test that sanitize() does not modify its input."""
 

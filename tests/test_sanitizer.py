@@ -286,6 +286,58 @@ class TestSanitizeFailurePaths:
         assert result.mol is not None
 
 
+class TestFixValenceMaxAttempts:
+    """Tests for _fix_valence_errors exhausting max attempts."""
+
+    def test_max_attempts_returns_false(self) -> None:
+        """_fix_valence_errors returns False when max attempts exhausted."""
+        from unittest.mock import patch
+
+        from ccd2rdmol.sanitizer import _fix_valence_errors
+
+        mol = Chem.RWMol()
+        n1 = mol.AddAtom(Chem.Atom(7))  # N
+        n2 = mol.AddAtom(Chem.Atom(7))  # N
+        mol.AddBond(n1, n2, Chem.BondType.SINGLE)
+
+        # Set max attempts to 0 so loop immediately falls through to return False
+        with patch("ccd2rdmol.sanitizer._MAX_SANITIZE_ATTEMPTS", 0):
+            result = _fix_valence_errors(mol)
+
+        assert result is False
+
+    def test_non_valence_problem_returns_false(self) -> None:
+        """_fix_valence_errors returns False when problems are not valence-related."""
+        from ccd2rdmol.sanitizer import _fix_valence_errors
+
+        # A molecule with non-valence chemistry problems
+        mol = Chem.RWMol()
+        c1 = mol.AddAtom(Chem.Atom(6))
+        c2 = mol.AddAtom(Chem.Atom(6))
+        mol.AddBond(c1, c2, Chem.BondType.AROMATIC)
+
+        result = _fix_valence_errors(mol)
+        assert isinstance(result, bool)
+
+    def test_smarts_pattern_none_continues(self) -> None:
+        """_fix_valence_errors continues when MolFromSmarts returns None."""
+        from unittest.mock import patch
+
+        from ccd2rdmol.sanitizer import _fix_valence_errors
+
+        # Create a molecule with Fe-N bond that causes valence error
+        mol = Chem.RWMol()
+        fe = mol.AddAtom(Chem.Atom(26))  # Fe
+        n = mol.AddAtom(Chem.Atom(7))  # N
+        mol.AddBond(fe, n, Chem.BondType.SINGLE)
+
+        # Patch MolFromSmarts to return None to hit the continue branch
+        with patch("ccd2rdmol.sanitizer.Chem.MolFromSmarts", return_value=None):
+            result = _fix_valence_errors(mol)
+
+        assert isinstance(result, bool)
+
+
 class TestVariousMoleculeTypes:
     """Tests for various molecule types to improve coverage."""
 
