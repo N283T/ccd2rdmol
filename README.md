@@ -279,38 +279,30 @@ Options:
 
 ## Development
 
-This project uses [poethepoet](https://github.com/nat-n/poethepoet) as a task runner.
-
 ```bash
 # Install dev dependencies
 uv sync
 
-# Format code (ruff format)
-uv run poe format
+# Format code
+uv run ruff format src/ tests/
 
-# Lint (ruff check)
-uv run poe lint
+# Lint
+uv run ruff check src/ tests/
 
 # Lint and auto-fix
-uv run poe fix
+uv run ruff check --fix src/ tests/
 
-# Type check (ty)
-uv run poe check
+# Type check
+uv run ty check src/
 
 # Run tests
-uv run poe test
+uv run pytest tests/ -v
 
 # Run tests with coverage
-uv run poe test-cov
+uv run pytest tests/ -v --cov=ccd2rdmol --cov-report=term-missing
 
 # Multi-version testing with nox (3.10, 3.11, 3.12, 3.13, 3.14)
-uv run poe nox
-
-# Run all checks (format, lint, check, test)
-uv run poe all
-
-# Clean cache files
-uv run poe clean
+uv run nox
 ```
 
 ## Acknowledgments
