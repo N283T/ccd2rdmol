@@ -17,6 +17,8 @@ This project is a simplified implementation inspired by [pdbeccdutils](https://g
 - Support for both Ideal and Model 3D conformers
 - Automatic metal bond to dative bond conversion
 - Stereochemistry assignment from 3D coordinates
+- Deuterium isotope handling
+- Degenerate conformer detection and rejection
 - CLI tool with rich output
 
 ## Installation
@@ -29,7 +31,14 @@ uv add ccd2rdmol
 uv add ccd2rdmol[cli]
 ```
 
-Or for development:
+Or with pip:
+
+```bash
+pip install ccd2rdmol
+pip install ccd2rdmol[cli]
+```
+
+For development:
 
 ```bash
 git clone https://github.com/N283T/ccd2rdmol.git
@@ -37,15 +46,24 @@ cd ccd2rdmol
 uv sync  # CLI is included in dev dependencies
 ```
 
-## Usage
-
-### As a Library
+## Quick Start
 
 ```python
-from ccd2rdmol import read_ccd_file, read_ccd_block
-import gemmi
+from ccd2rdmol import read_ccd_file
 
-# Read from file
+result = read_ccd_file("ATP.cif")
+print(f"Atoms: {result.mol.GetNumAtoms()}")
+print(f"Sanitized: {result.sanitized}")
+```
+
+## Usage
+
+### Reading from a CIF File
+
+```python
+from ccd2rdmol import read_ccd_file
+
+# Default: sanitize, add conformers, remove hydrogens
 result = read_ccd_file("ATP.cif")
 mol = result.mol
 
@@ -61,17 +79,162 @@ result = read_ccd_file(
     add_conformers=True,    # Add 3D conformers (default: True)
     remove_hydrogens=True,  # Remove hydrogens (default: True)
 )
+```
 
-# From gemmi CIF block
+### Reading from a gemmi CIF Block
+
+```python
+import gemmi
+from ccd2rdmol import read_ccd_block
+
 doc = gemmi.cif.read("components.cif")
 for block in doc:
     result = read_ccd_block(block)
     print(f"{block.name}: {result.mol.GetNumAtoms()} atoms")
 ```
 
-### As a CLI
+### Low-Level API: chemcomp_to_mol
 
-> **Note**: CLI requires extra dependencies. Install with `uv add ccd2rdmol[cli]`
+```python
+import gemmi
+from ccd2rdmol import chemcomp_to_mol
+
+doc = gemmi.cif.read("ATP.cif")
+block = doc.sole_block()
+cc = gemmi.make_chemcomp_from_block(block)
+
+result = chemcomp_to_mol(
+    cc, block,
+    sanitize_mol=False,       # Skip sanitization
+    add_conformers=True,
+    remove_hydrogens=False,   # Keep all hydrogens
+)
+```
+
+### Generating SMILES and InChI
+
+```python
+from rdkit import Chem
+from rdkit.Chem.inchi import MolToInchi
+from ccd2rdmol import read_ccd_file
+
+result = read_ccd_file("ATP.cif")
+
+smiles = Chem.MolToSmiles(result.mol)
+inchi = MolToInchi(result.mol)
+
+print(f"SMILES: {smiles}")
+print(f"InChI: {inchi}")
+```
+
+### Accessing Conformer Coordinates
+
+```python
+from ccd2rdmol import read_ccd_file
+
+result = read_ccd_file("ATP.cif", add_conformers=True)
+mol = result.mol
+
+for conf in mol.GetConformers():
+    name = conf.GetProp("name")  # "IDEAL" or "MODEL"
+    print(f"\n{name} conformer:")
+    for i in range(mol.GetNumAtoms()):
+        pos = conf.GetAtomPosition(i)
+        atom = mol.GetAtomWithIdx(i)
+        print(f"  {atom.GetSymbol()} ({pos.x:.3f}, {pos.y:.3f}, {pos.z:.3f})")
+```
+
+### Handling Conversion Errors
+
+```python
+from ccd2rdmol import read_ccd_file
+
+result = read_ccd_file("complex_molecule.cif")
+
+if result.errors:
+    print("Errors:", result.errors)
+
+if result.warnings:
+    print("Warnings:", result.warnings)
+
+if not result.sanitized:
+    print("Sanitization failed — molecule may have valence issues")
+```
+
+## API Reference
+
+### Functions
+
+#### `read_ccd_file(path, *, sanitize_mol=True, add_conformers=True, remove_hydrogens=True) → ConversionResult`
+
+Read a CCD CIF file and convert to RDKit molecule.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `path` | `str` | — | Path to CIF file |
+| `sanitize_mol` | `bool` | `True` | Sanitize the molecule (fix valence, kekulize) |
+| `add_conformers` | `bool` | `True` | Add IDEAL and MODEL 3D conformers |
+| `remove_hydrogens` | `bool` | `True` | Remove hydrogen atoms from the molecule |
+
+Raises `FileNotFoundError` if file does not exist.
+
+#### `read_ccd_block(cif_block, *, sanitize_mol=True, add_conformers=True, remove_hydrogens=True) → ConversionResult`
+
+Convert a `gemmi.cif.Block` to RDKit molecule. Same parameters as `read_ccd_file` except takes a pre-parsed CIF block.
+
+#### `chemcomp_to_mol(cc, cif_block, *, sanitize_mol=True, add_conformers=True, remove_hydrogens=True) → ConversionResult`
+
+Convert a `gemmi.ChemComp` and `gemmi.cif.Block` to RDKit molecule. Lowest-level API for maximum control.
+
+### Data Classes
+
+#### `ConversionResult`
+
+Frozen dataclass returned by all conversion functions.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mol` | `Chem.Mol` | RDKit molecule object |
+| `sanitized` | `bool` | Whether sanitization succeeded |
+| `errors` | `list[str]` | Errors encountered during conversion |
+| `warnings` | `list[str]` | Warnings (e.g., missing conformer data) |
+
+#### `SanitizationResult`
+
+Frozen dataclass returned by `sanitize()`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `mol` | `Chem.Mol` | Sanitized molecule (always a copy) |
+| `success` | `bool` | Whether sanitization succeeded |
+
+## How It Works
+
+The conversion pipeline:
+
+1. **Parse CIF** — gemmi reads the CIF file and creates a `ChemComp` (atoms, bonds, charges) and a `cif.Block` (coordinate data)
+2. **Build molecule** — Atoms are added to an RDKit `RWMol` with element types, charges, and isotope labels (Deuterium → isotope 2). Bonds are mapped from gemmi bond types to RDKit bond types via `BOND_TYPE_MAP`
+3. **Set hydrogen flags** — Atoms without explicit hydrogen neighbors are flagged `NoImplicit=True` to prevent RDKit from adding implicit hydrogens
+4. **Add conformers** — IDEAL and MODEL 3D coordinates are read from the CIF coordinate columns. Conformers with all-missing coordinates or degenerate positions (>1 atom at origin) are rejected
+5. **Sanitize** — The sanitizer fixes valence errors caused by metal-ligand bonds by converting them to dative bonds. Uses `Chem.DetectChemistryProblems()` to identify problematic atoms and iteratively fixes them (up to 11 attempts). The original molecule is never modified
+6. **Assign stereochemistry** — `AssignStereochemistryFrom3D` is called using the IDEAL conformer (preferred) or MODEL conformer
+7. **Remove hydrogens** — Optionally strips hydrogen atoms from the final molecule
+
+## Comparison with pdbeccdutils
+
+| | ccd2rdmol | pdbeccdutils |
+|---|---|---|
+| **Focus** | CCD → RDKit conversion only | Full CCD processing toolkit |
+| **Dependencies** | gemmi + rdkit | gemmi + rdkit + scipy + numpy + ... |
+| **Scope** | Single molecules from CIF | Depictions, scaffolds, fragments, PDB integration |
+| **Install size** | Minimal | ~50+ transitive dependencies |
+| **Use case** | "I just need an RDKit Mol from a CCD entry" | Full cheminformatics pipeline |
+
+If you only need to convert CCD entries to RDKit molecules, ccd2rdmol provides a simpler, lighter alternative.
+
+## CLI
+
+> **Note**: CLI requires extra dependencies. Install with `pip install ccd2rdmol[cli]`
 
 ```bash
 # Output SMILES to stdout
@@ -82,6 +245,9 @@ ccd2rdmol convert ATP.cif -o ATP.mol
 
 # Write to SDF format
 ccd2rdmol convert ATP.cif -o ATP.sdf
+
+# Output InChI
+ccd2rdmol convert ATP.cif -f inchi
 
 # Keep hydrogen atoms
 ccd2rdmol convert ATP.cif --keep-hydrogens
@@ -133,6 +299,9 @@ uv run poe check
 
 # Run tests
 uv run poe test
+
+# Run tests with coverage
+uv run poe test-cov
 
 # Multi-version testing with nox (3.10, 3.11, 3.12, 3.13, 3.14)
 uv run poe nox
