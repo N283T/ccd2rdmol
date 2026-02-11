@@ -13,3 +13,6 @@ wheels/
 .coverage
 coverage.xml
 htmlcov/
+
+# Plans (session-specific)
+plans/
