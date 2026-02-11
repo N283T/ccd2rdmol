@@ -4,17 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Commands
 
-This project uses **uv** for package management and **poethepoet** (poe) as the task runner. All commands run via `uv run poe <task>`.
+This project uses **uv** for package management.
 
 ```bash
-uv run poe test          # Run tests with pytest
-uv run poe test-cov      # Run tests with coverage report
-uv run poe format        # Format with ruff
-uv run poe lint          # Lint with ruff
-uv run poe fix           # Lint + autofix with ruff
-uv run poe check         # Type check with ty
-uv run poe all           # format + lint + check + test
-uv run poe nox           # Multi-version tests (Python 3.10-3.14)
+uv run ruff format src/ tests/      # Format with ruff
+uv run ruff check src/ tests/       # Lint with ruff
+uv run ruff check --fix src/ tests/ # Lint + autofix with ruff
+uv run ty check src/                # Type check with ty
+uv run pytest tests/ -v             # Run tests
+uv run pytest tests/ -v --cov=ccd2rdmol --cov-report=term-missing  # Tests with coverage
+uv run nox                          # Multi-version tests (Python 3.10-3.14)
 ```
 
 Run a single test file or test function:
